@@ -20,7 +20,6 @@
             </div>
         </header>
 
-        <!-- Riepiloghi -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div class="bg-white p-4 rounded-xl shadow-sm">
                 <label class="text-xs font-bold uppercase text-gray-400">Anno di Riferimento</label>
@@ -38,7 +37,11 @@
                 <h2 class="text-md font-bold mb-4">Aggiungi Spesa</h2>
                 <form id="spesaForm" onsubmit="aggiungiSpesa(event)" class="space-y-4">
                     <input type="date" id="data" required class="w-full p-2 border rounded-lg">
-                    <input type="text" id="figlio" placeholder="Nome Figlio/a" required class="w-full p-2 border rounded-lg">
+                    <!-- Menù a tendina per i nomi -->
+                    <select id="figlio" required class="w-full p-2 border rounded-lg bg-white">
+                        <option value="Sebastian">Sebastian</option>
+                        <option value="Charlotte">Charlotte</option>
+                    </select>
                     <input type="text" id="descrizione" placeholder="Descrizione" required class="w-full p-2 border rounded-lg">
                     <input type="number" step="0.01" id="importo" placeholder="Importo (€)" required class="w-full p-2 border rounded-lg">
                     <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-lg font-bold">Salva Spesa</button>
@@ -63,15 +66,8 @@
         
         window.onload = () => { document.getElementById('data').valueAsDate = new Date(); inizializzaFiltroAnni(); aggiornaInterfaccia(); };
 
-        function salvaDati() { 
-            localStorage.setItem('spese_extra_figli', JSON.stringify(spese));
-            console.log("Dati salvati automaticamente.");
-        }
-
-        function salvaManualmente() {
-            salvaDati();
-            alert("Dati salvati con successo nel browser!");
-        }
+        function salvaDati() { localStorage.setItem('spese_extra_figli', JSON.stringify(spese)); }
+        function salvaManualmente() { salvaDati(); alert("Dati salvati con successo!"); }
 
         function inizializzaFiltroAnni() {
             const select = document.getElementById('filtroAnno');
@@ -83,7 +79,13 @@
 
         function aggiungiSpesa(e) {
             e.preventDefault();
-            spese.push({ id: Date.now(), data: document.getElementById('data').value, figlio: document.getElementById('figlio').value.trim(), descrizione: document.getElementById('descrizione').value.trim(), importo: parseFloat(document.getElementById('importo').value) });
+            spese.push({ 
+                id: Date.now(), 
+                data: document.getElementById('data').value, 
+                figlio: document.getElementById('figlio').value, 
+                descrizione: document.getElementById('descrizione').value.trim(), 
+                importo: parseFloat(document.getElementById('importo').value) 
+            });
             salvaDati(); 
             aggiornaInterfaccia();
         }
@@ -95,7 +97,7 @@
             const dettagli = document.getElementById('dettaglioFigli');
             lista.innerHTML = '';
             
-            let totaliPerFiglio = {};
+            let totaliPerFiglio = { "Sebastian": 0, "Charlotte": 0 };
             
             filtered.sort((a,b) => new Date(b.data)-new Date(a.data)).forEach(s => {
                 if (s.importo > 10) {
@@ -103,7 +105,7 @@
                 }
                 lista.innerHTML += `<tr class="hover:bg-gray-50">
                     <td class="py-3">${new Date(s.data).toLocaleDateString()}</td>
-                    <td class="py-3">${s.figlio}</td>
+                    <td class="py-3 font-medium">${s.figlio}</td>
                     <td class="py-3">${s.descrizione}</td>
                     <td class="py-3 text-right font-bold">${s.importo.toLocaleString('it-IT',{style:'currency',currency:'EUR'}).replace('undefined','')} ${s.importo <= 10 ? '<span class="text-[10px] text-gray-400">(Esclusa)</span>' : ''}</td>
                     <td class="py-3 text-center"><button onclick="eliminaSpesa(${s.id})" class="text-red-500 hover:underline">Elimina</button></td>
