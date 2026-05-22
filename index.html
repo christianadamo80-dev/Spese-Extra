@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestione Spese Figli</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen pb-12">
 
@@ -15,6 +14,7 @@
             <div class="flex flex-wrap gap-2">
                 <button onclick="salvaManualmente()" class="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-lg font-bold transition">💾 Salva Dati</button>
                 <button onclick="esportaDati()" class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg font-medium transition">Esporta JSON</button>
+                <button onclick="document.getElementById('importFile').click()" class="text-xs bg-green-100 text-green-700 hover:bg-green-200 px-3 py-1.5 rounded-lg font-bold transition">📥 Importa JSON</button>
                 <input type="file" id="importFile" class="hidden" accept=".json" onchange="importaDati(event)">
             </div>
         </header>
@@ -25,8 +25,8 @@
                 <select id="filtroAnno" onchange="aggiornaInterfaccia()" class="w-full bg-gray-50 border rounded-lg p-2 font-semibold text-lg focus:outline-none"></select>
             </div>
             <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500">
-                <div class="text-xs font-bold uppercase text-gray-400">Da Pagare (Spese > 10€)</div>
-                <div id="dettaglioFigli" class="text-sm font-medium mt-1"></div>
+                <div class="text-xs font-bold uppercase text-gray-400">Riepilogo Quote (Spese > 10€)</div>
+                <div id="dettaglioFigli" class="text-sm font-medium mt-1 space-y-2"></div>
                 <div id="totaleComplessivo" class="mt-3 pt-2 border-t font-bold text-blue-800"></div>
             </div>
         </div>
@@ -97,7 +97,6 @@
             let totaleGlobale = 0;
             
             filtered.sort((a,b) => new Date(b.data)-new Date(a.data)).forEach(s => {
-                // Conteggio solo se > 10€ e NON ancora pagata
                 if (s.importo > 10 && !s.pagata) {
                     totaliPerFiglio[s.figlio] = (totaliPerFiglio[s.figlio] || 0) + s.importo;
                     totaleGlobale += s.importo;
@@ -110,7 +109,7 @@
                     <td class="py-3 text-right font-bold">${s.importo.toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</td>
                     <td class="py-3 text-center">
                         <select onchange="cambiaStato(${s.id}, this.value)" class="text-xs p-1 border rounded ${s.pagata ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
-                            <option value="false" ${!s.pagata ? 'selected' : ''}>Non Pagata</option>
+                            <option value="false" ${!s.pagata ? 'selected' : ''}>Da Pagare</option>
                             <option value="true" ${s.pagata ? 'selected' : ''}>Pagata</option>
                         </select>
                     </td>
@@ -118,11 +117,15 @@
                 </tr>`;
             });
 
+            // Calcolo e visualizzazione quote al 50%
             document.getElementById('dettaglioFigli').innerHTML = Object.entries(totaliPerFiglio).map(([nome, tot]) => 
-                `<div class="flex justify-between py-1"><span>${nome}:</span> <b>${tot.toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</b></div>`
+                `<div class="flex justify-between">
+                    <span>${nome}:</span> 
+                    <span class="text-gray-500 text-xs">Quota 50%: <b>${(tot/2).toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</b></span>
+                </div>`
             ).join('');
             
-            document.getElementById('totaleComplessivo').innerHTML = `DA PAGARE: ${totaleGlobale.toLocaleString('it-IT',{style:'currency',currency:'EUR'})}`;
+            document.getElementById('totaleComplessivo').innerHTML = `TUA QUOTA TOTALE: ${(totaleGlobale/2).toLocaleString('it-IT',{style:'currency',currency:'EUR'})}`;
             inizializzaFiltroAnni();
         }
 
@@ -135,7 +138,12 @@
         }
 
         function eliminaSpesa(id) { spese = spese.filter(s => s.id !== id); salvaDati(); aggiornaInterfaccia(); }
-        function importaDati(e) { const r = new FileReader(); r.onload = (evt) => { spese = JSON.parse(evt.target.result); salvaDati(); aggiornaInterfaccia(); }; r.readAsText(e.target.files[0]); }
+        function esportaDati() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(spese)); a.download="backup_spese.json"; a.click(); }
+        function importaDati(e) { 
+            const r = new FileReader(); 
+            r.onload = (evt) => { spese = JSON.parse(evt.target.result); salvaDati(); inizializzaFiltroAnni(); aggiornaInterfaccia(); alert("Dati caricati!"); }; 
+            r.readAsText(e.target.files[0]); 
+        }
     </script>
 </body>
 </html>
