@@ -19,15 +19,16 @@
             </div>
         </header>
 
+        <!-- Riepilogo Suddiviso -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div class="bg-white p-4 rounded-xl shadow-sm">
-                <label class="text-xs font-bold uppercase text-gray-400">Anno di Riferimento</label>
+            <div class="bg-white p-4 rounded-xl shadow-sm flex flex-col justify-center">
+                <label class="text-xs font-bold uppercase text-gray-400 mb-2">Anno di Riferimento</label>
                 <select id="filtroAnno" onchange="aggiornaInterfaccia()" class="w-full bg-gray-50 border rounded-lg p-2 font-semibold text-lg focus:outline-none"></select>
             </div>
-            <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500">
-                <div class="text-xs font-bold uppercase text-gray-400">Riepilogo Quote (Spese > 10€)</div>
-                <div id="dettaglioFigli" class="text-sm font-medium mt-1 space-y-2"></div>
-                <div id="totaleComplessivo" class="mt-3 pt-2 border-t font-bold text-blue-800"></div>
+            <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-blue-500">
+                <div class="text-xs font-bold uppercase text-gray-400 mb-3">Situazione Rimborso (Spese > 10€ non pagate)</div>
+                <div id="dettaglioFigli" class="space-y-4"></div>
+                <div id="totaleComplessivo" class="mt-4 pt-3 border-t-2 border-gray-100 font-black text-blue-900 text-lg"></div>
             </div>
         </div>
 
@@ -60,7 +61,6 @@
 
     <script>
         let spese = JSON.parse(localStorage.getItem('spese_extra_figli')) || [];
-        
         window.onload = () => { document.getElementById('data').valueAsDate = new Date(); inizializzaFiltroAnni(); aggiornaInterfaccia(); };
 
         function salvaDati() { localStorage.setItem('spese_extra_figli', JSON.stringify(spese)); }
@@ -68,24 +68,11 @@
 
         function aggiungiSpesa(e) {
             e.preventDefault();
-            spese.push({ 
-                id: Date.now(), 
-                data: document.getElementById('data').value, 
-                figlio: document.getElementById('figlio').value, 
-                descrizione: document.getElementById('descrizione').value.trim(), 
-                importo: parseFloat(document.getElementById('importo').value),
-                pagata: false 
-            });
-            salvaDati(); 
-            aggiornaInterfaccia();
+            spese.push({ id: Date.now(), data: document.getElementById('data').value, figlio: document.getElementById('figlio').value, descrizione: document.getElementById('descrizione').value.trim(), importo: parseFloat(document.getElementById('importo').value), pagata: false });
+            salvaDati(); aggiornaInterfaccia();
         }
 
-        function cambiaStato(id, valore) {
-            const spesa = spese.find(s => s.id === id);
-            spesa.pagata = (valore === 'true');
-            salvaDati();
-            aggiornaInterfaccia();
-        }
+        function cambiaStato(id, valore) { spese.find(s => s.id === id).pagata = (valore === 'true'); salvaDati(); aggiornaInterfaccia(); }
 
         function aggiornaInterfaccia() {
             const anno = parseInt(document.getElementById('filtroAnno').value) || new Date().getFullYear();
@@ -93,39 +80,41 @@
             const lista = document.getElementById('listaSpese');
             lista.innerHTML = '';
             
-            let totaliPerFiglio = { "Sebastian": 0, "Charlotte": 0 };
-            let totaleGlobale = 0;
+            let stats = { "Sebastian": 0, "Charlotte": 0 };
+            let totaleTuo = 0;
             
             filtered.sort((a,b) => new Date(b.data)-new Date(a.data)).forEach(s => {
                 if (s.importo > 10 && !s.pagata) {
-                    totaliPerFiglio[s.figlio] = (totaliPerFiglio[s.figlio] || 0) + s.importo;
-                    totaleGlobale += s.importo;
+                    stats[s.figlio] += s.importo;
+                    totaleTuo += (s.importo / 2);
                 }
                 
-                lista.innerHTML += `<tr class="hover:bg-gray-50 ${s.pagata ? 'opacity-50' : ''}">
+                lista.innerHTML += `<tr class="${s.pagata ? 'opacity-50' : ''}">
                     <td class="py-3">${new Date(s.data).toLocaleDateString()}</td>
                     <td class="py-3 font-medium">${s.figlio}</td>
                     <td class="py-3">${s.descrizione}</td>
                     <td class="py-3 text-right font-bold">${s.importo.toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</td>
                     <td class="py-3 text-center">
-                        <select onchange="cambiaStato(${s.id}, this.value)" class="text-xs p-1 border rounded ${s.pagata ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                        <select onchange="cambiaStato(${s.id}, this.value)" class="text-xs p-1 border rounded ${s.pagata ? 'bg-green-100' : 'bg-red-100'}">
                             <option value="false" ${!s.pagata ? 'selected' : ''}>Da Pagare</option>
                             <option value="true" ${s.pagata ? 'selected' : ''}>Pagata</option>
                         </select>
                     </td>
-                    <td class="py-3 text-center"><button onclick="eliminaSpesa(${s.id})" class="text-red-500 hover:underline">Elimina</button></td>
+                    <td class="py-3 text-center"><button onclick="eliminaSpesa(${s.id})" class="text-red-500">Elimina</button></td>
                 </tr>`;
             });
 
-            // Calcolo e visualizzazione quote al 50%
-            document.getElementById('dettaglioFigli').innerHTML = Object.entries(totaliPerFiglio).map(([nome, tot]) => 
-                `<div class="flex justify-between">
-                    <span>${nome}:</span> 
-                    <span class="text-gray-500 text-xs">Quota 50%: <b>${(tot/2).toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</b></span>
+            document.getElementById('dettaglioFigli').innerHTML = Object.entries(stats).map(([nome, tot]) => 
+                `<div class="flex flex-col bg-gray-50 p-2 rounded">
+                    <span class="text-xs font-bold text-gray-500">${nome.toUpperCase()}</span>
+                    <div class="flex justify-between mt-1">
+                        <span>Totale Spese: <b>${tot.toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</b></span>
+                        <span class="text-blue-700 font-bold">Tua Quota (50%): ${(tot/2).toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</span>
+                    </div>
                 </div>`
             ).join('');
             
-            document.getElementById('totaleComplessivo').innerHTML = `TUA QUOTA TOTALE: ${(totaleGlobale/2).toLocaleString('it-IT',{style:'currency',currency:'EUR'})}`;
+            document.getElementById('totaleComplessivo').innerHTML = `TOTALE GENERALE DA RICEVERE: ${(totaleTuo).toLocaleString('it-IT',{style:'currency',currency:'EUR'})}`;
             inizializzaFiltroAnni();
         }
 
@@ -139,11 +128,7 @@
 
         function eliminaSpesa(id) { spese = spese.filter(s => s.id !== id); salvaDati(); aggiornaInterfaccia(); }
         function esportaDati() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(spese)); a.download="backup_spese.json"; a.click(); }
-        function importaDati(e) { 
-            const r = new FileReader(); 
-            r.onload = (evt) => { spese = JSON.parse(evt.target.result); salvaDati(); inizializzaFiltroAnni(); aggiornaInterfaccia(); alert("Dati caricati!"); }; 
-            r.readAsText(e.target.files[0]); 
-        }
+        function importaDati(e) { const r = new FileReader(); r.onload = (evt) => { spese = JSON.parse(evt.target.result); salvaDati(); inizializzaFiltroAnni(); aggiornaInterfaccia(); }; r.readAsText(e.target.files[0]); }
     </script>
 </body>
 </html>
