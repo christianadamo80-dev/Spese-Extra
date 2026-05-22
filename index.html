@@ -25,7 +25,7 @@
                 <select id="filtroAnno" onchange="aggiornaInterfaccia()" class="w-full bg-gray-50 border rounded-lg p-2 font-semibold text-lg focus:outline-none"></select>
             </div>
             <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-blue-500">
-                <div class="text-xs font-bold uppercase text-gray-400 mb-3">Riepilogo Totali</div>
+                <div class="text-xs font-bold uppercase text-gray-400 mb-3">Riepilogo (Spese > 10€)</div>
                 <div id="dettaglioFigli" class="space-y-4"></div>
                 <div id="totaleComplessivo" class="mt-4 pt-3 border-t-2 border-gray-100 font-black text-blue-900 text-lg"></div>
             </div>
@@ -79,9 +79,7 @@
             const lista = document.getElementById('listaSpese');
             lista.innerHTML = '';
             
-            // stats mantiene il totale COMPLETO (anche pagate) per i box in alto
             let stats = { "Sebastian": { totale: 0 }, "Charlotte": { totale: 0 } };
-            // totaleDaInviare calcola solo le NON PAGATE per il totale in basso
             let totaleDaInviare = 0;
             
             filtered.sort((a,b) => new Date(b.data)-new Date(a.data)).forEach(s => {
@@ -106,9 +104,12 @@
             });
 
             document.getElementById('dettaglioFigli').innerHTML = Object.entries(stats).map(([nome, data]) => 
-                `<div class="flex justify-between bg-gray-50 p-2 rounded">
-                    <span class="text-sm font-bold">${nome}</span>
-                    <span class="text-sm">Totale: <b>${data.totale.toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</b></span>
+                `<div class="flex flex-col bg-gray-50 p-2 rounded">
+                    <span class="text-xs font-bold text-gray-500">${nome.toUpperCase()}</span>
+                    <div class="flex justify-between mt-1 text-xs">
+                        <span>Totale: <b>${data.totale.toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</b></span>
+                        <span class="text-blue-700">Tua Quota (50%): <b>${(data.totale/2).toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</b></span>
+                    </div>
                 </div>`
             ).join('');
             
