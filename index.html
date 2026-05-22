@@ -15,26 +15,23 @@
             <div class="flex flex-wrap gap-2">
                 <button onclick="salvaManualmente()" class="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-lg font-bold transition">💾 Salva Dati</button>
                 <button onclick="esportaDati()" class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg font-medium transition">Esporta JSON</button>
-                <button onclick="document.getElementById('importFile').click()" class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg font-medium transition">Importa JSON</button>
                 <input type="file" id="importFile" class="hidden" accept=".json" onchange="importaDati(event)">
             </div>
         </header>
 
-        <!-- Riepiloghi -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div class="bg-white p-4 rounded-xl shadow-sm">
                 <label class="text-xs font-bold uppercase text-gray-400">Anno di Riferimento</label>
                 <select id="filtroAnno" onchange="aggiornaInterfaccia()" class="w-full bg-gray-50 border rounded-lg p-2 font-semibold text-lg focus:outline-none"></select>
             </div>
-            <div id="riepilogoFigli" class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500">
-                <div class="text-xs font-bold uppercase text-gray-400">Totali (Spese > 10€)</div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500">
+                <div class="text-xs font-bold uppercase text-gray-400">Da Pagare (Spese > 10€)</div>
                 <div id="dettaglioFigli" class="text-sm font-medium mt-1"></div>
                 <div id="totaleComplessivo" class="mt-3 pt-2 border-t font-bold text-blue-800"></div>
             </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Form -->
             <div class="bg-white p-5 rounded-xl shadow-sm h-fit">
                 <h2 class="text-md font-bold mb-4">Aggiungi Spesa</h2>
                 <form id="spesaForm" onsubmit="aggiungiSpesa(event)" class="space-y-4">
@@ -49,12 +46,11 @@
                 </form>
             </div>
 
-            <!-- Registro -->
             <div class="lg:col-span-2 bg-white p-5 rounded-xl shadow-sm">
                 <h2 class="text-md font-bold mb-4">Registro Spese</h2>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left">
-                        <thead><tr class="text-xs text-gray-400 uppercase"><th class="py-2">Data</th><th>Figlio</th><th>Descrizione</th><th class="text-right">Importo</th><th></th></tr></thead>
+                        <thead><tr class="text-xs text-gray-400 uppercase"><th class="py-2">Data</th><th>Figlio</th><th>Descrizione</th><th class="text-right">Importo</th><th class="text-center">Stato</th><th></th></tr></thead>
                         <tbody id="listaSpese" class="divide-y text-sm"></tbody>
                     </table>
                 </div>
@@ -68,15 +64,7 @@
         window.onload = () => { document.getElementById('data').valueAsDate = new Date(); inizializzaFiltroAnni(); aggiornaInterfaccia(); };
 
         function salvaDati() { localStorage.setItem('spese_extra_figli', JSON.stringify(spese)); }
-        function salvaManualmente() { salvaDati(); alert("Dati salvati con successo!"); }
-
-        function inizializzaFiltroAnni() {
-            const select = document.getElementById('filtroAnno');
-            const anni = new Set([new Date().getFullYear(), ...spese.map(s => new Date(s.data).getFullYear())]);
-            const valCorrente = select.value;
-            select.innerHTML = Array.from(anni).sort((a,b) => b-a).map(a => `<option value="${a}">${a}</option>`).join('');
-            if(valCorrente) select.value = valCorrente;
-        }
+        function salvaManualmente() { salvaDati(); alert("Dati salvati!"); }
 
         function aggiungiSpesa(e) {
             e.preventDefault();
@@ -85,9 +73,17 @@
                 data: document.getElementById('data').value, 
                 figlio: document.getElementById('figlio').value, 
                 descrizione: document.getElementById('descrizione').value.trim(), 
-                importo: parseFloat(document.getElementById('importo').value) 
+                importo: parseFloat(document.getElementById('importo').value),
+                pagata: false 
             });
             salvaDati(); 
+            aggiornaInterfaccia();
+        }
+
+        function cambiaStato(id, valore) {
+            const spesa = spese.find(s => s.id === id);
+            spesa.pagata = (valore === 'true');
+            salvaDati();
             aggiornaInterfaccia();
         }
 
@@ -95,37 +91,51 @@
             const anno = parseInt(document.getElementById('filtroAnno').value) || new Date().getFullYear();
             const filtered = spese.filter(s => new Date(s.data).getFullYear() === anno);
             const lista = document.getElementById('listaSpese');
-            const dettagli = document.getElementById('dettaglioFigli');
-            const totGlobaleCont = document.getElementById('totaleComplessivo');
             lista.innerHTML = '';
             
             let totaliPerFiglio = { "Sebastian": 0, "Charlotte": 0 };
             let totaleGlobale = 0;
             
             filtered.sort((a,b) => new Date(b.data)-new Date(a.data)).forEach(s => {
-                if (s.importo > 10) {
+                // Conteggio solo se > 10€ e NON ancora pagata
+                if (s.importo > 10 && !s.pagata) {
                     totaliPerFiglio[s.figlio] = (totaliPerFiglio[s.figlio] || 0) + s.importo;
                     totaleGlobale += s.importo;
                 }
-                lista.innerHTML += `<tr class="hover:bg-gray-50">
+                
+                lista.innerHTML += `<tr class="hover:bg-gray-50 ${s.pagata ? 'opacity-50' : ''}">
                     <td class="py-3">${new Date(s.data).toLocaleDateString()}</td>
                     <td class="py-3 font-medium">${s.figlio}</td>
                     <td class="py-3">${s.descrizione}</td>
-                    <td class="py-3 text-right font-bold">${s.importo.toLocaleString('it-IT',{style:'currency',currency:'EUR'}).replace('undefined','')} ${s.importo <= 10 ? '<span class="text-[10px] text-gray-400">(Esclusa)</span>' : ''}</td>
+                    <td class="py-3 text-right font-bold">${s.importo.toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</td>
+                    <td class="py-3 text-center">
+                        <select onchange="cambiaStato(${s.id}, this.value)" class="text-xs p-1 border rounded ${s.pagata ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                            <option value="false" ${!s.pagata ? 'selected' : ''}>Non Pagata</option>
+                            <option value="true" ${s.pagata ? 'selected' : ''}>Pagata</option>
+                        </select>
+                    </td>
                     <td class="py-3 text-center"><button onclick="eliminaSpesa(${s.id})" class="text-red-500 hover:underline">Elimina</button></td>
                 </tr>`;
             });
 
-            dettagli.innerHTML = Object.entries(totaliPerFiglio).map(([nome, tot]) => 
+            document.getElementById('dettaglioFigli').innerHTML = Object.entries(totaliPerFiglio).map(([nome, tot]) => 
                 `<div class="flex justify-between py-1"><span>${nome}:</span> <b>${tot.toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</b></div>`
             ).join('');
             
-            totGlobaleCont.innerHTML = `TOTALE COMPLESSIVO: ${totaleGlobale.toLocaleString('it-IT',{style:'currency',currency:'EUR'})}`;
+            document.getElementById('totaleComplessivo').innerHTML = `DA PAGARE: ${totaleGlobale.toLocaleString('it-IT',{style:'currency',currency:'EUR'})}`;
+            inizializzaFiltroAnni();
+        }
+
+        function inizializzaFiltroAnni() {
+            const select = document.getElementById('filtroAnno');
+            const anni = new Set([new Date().getFullYear(), ...spese.map(s => new Date(s.data).getFullYear())]);
+            const val = select.value;
+            select.innerHTML = Array.from(anni).sort((a,b) => b-a).map(a => `<option value="${a}">${a}</option>`).join('');
+            if(val) select.value = val;
         }
 
         function eliminaSpesa(id) { spese = spese.filter(s => s.id !== id); salvaDati(); aggiornaInterfaccia(); }
-        function esportaDati() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(spese)); a.download="backup_spese.json"; a.click(); }
-        function importaDati(e) { const r = new FileReader(); r.onload = (evt) => { spese = JSON.parse(evt.target.result); salvaDati(); inizializzaFiltroAnni(); aggiornaInterfaccia(); alert("Dati importati!"); }; r.readAsText(e.target.files[0]); }
+        function importaDati(e) { const r = new FileReader(); r.onload = (evt) => { spese = JSON.parse(evt.target.result); salvaDati(); aggiornaInterfaccia(); }; r.readAsText(e.target.files[0]); }
     </script>
 </body>
 </html>
