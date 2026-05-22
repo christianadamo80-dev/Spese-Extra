@@ -19,14 +19,13 @@
             </div>
         </header>
 
-        <!-- Riepilogo Suddiviso -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div class="bg-white p-4 rounded-xl shadow-sm flex flex-col justify-center">
                 <label class="text-xs font-bold uppercase text-gray-400 mb-2">Anno di Riferimento</label>
                 <select id="filtroAnno" onchange="aggiornaInterfaccia()" class="w-full bg-gray-50 border rounded-lg p-2 font-semibold text-lg focus:outline-none"></select>
             </div>
             <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-blue-500">
-                <div class="text-xs font-bold uppercase text-gray-400 mb-3">Situazione Rimborso (Spese > 10€ non pagate)</div>
+                <div class="text-xs font-bold uppercase text-gray-400 mb-3">Riepilogo Totali</div>
                 <div id="dettaglioFigli" class="space-y-4"></div>
                 <div id="totaleComplessivo" class="mt-4 pt-3 border-t-2 border-gray-100 font-black text-blue-900 text-lg"></div>
             </div>
@@ -80,13 +79,15 @@
             const lista = document.getElementById('listaSpese');
             lista.innerHTML = '';
             
-            let stats = { "Sebastian": 0, "Charlotte": 0 };
-            let totaleTuo = 0;
+            // stats mantiene il totale COMPLETO (anche pagate) per i box in alto
+            let stats = { "Sebastian": { totale: 0 }, "Charlotte": { totale: 0 } };
+            // totaleDaInviare calcola solo le NON PAGATE per il totale in basso
+            let totaleDaInviare = 0;
             
             filtered.sort((a,b) => new Date(b.data)-new Date(a.data)).forEach(s => {
-                if (s.importo > 10 && !s.pagata) {
-                    stats[s.figlio] += s.importo;
-                    totaleTuo += (s.importo / 2);
+                if (s.importo > 10) {
+                    stats[s.figlio].totale += s.importo;
+                    if (!s.pagata) totaleDaInviare += (s.importo / 2);
                 }
                 
                 lista.innerHTML += `<tr class="${s.pagata ? 'opacity-50' : ''}">
@@ -104,17 +105,14 @@
                 </tr>`;
             });
 
-            document.getElementById('dettaglioFigli').innerHTML = Object.entries(stats).map(([nome, tot]) => 
-                `<div class="flex flex-col bg-gray-50 p-2 rounded">
-                    <span class="text-xs font-bold text-gray-500">${nome.toUpperCase()}</span>
-                    <div class="flex justify-between mt-1">
-                        <span>Totale Spese: <b>${tot.toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</b></span>
-                        <span class="text-blue-700 font-bold">Tua Quota (50%): ${(tot/2).toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</span>
-                    </div>
+            document.getElementById('dettaglioFigli').innerHTML = Object.entries(stats).map(([nome, data]) => 
+                `<div class="flex justify-between bg-gray-50 p-2 rounded">
+                    <span class="text-sm font-bold">${nome}</span>
+                    <span class="text-sm">Totale: <b>${data.totale.toLocaleString('it-IT',{style:'currency',currency:'EUR'})}</b></span>
                 </div>`
             ).join('');
             
-            document.getElementById('totaleComplessivo').innerHTML = `TOTALE GENERALE DA RICEVERE: ${(totaleTuo).toLocaleString('it-IT',{style:'currency',currency:'EUR'})}`;
+            document.getElementById('totaleComplessivo').innerHTML = `TOTALE GENERALE DA INVIARE: ${(totaleDaInviare).toLocaleString('it-IT',{style:'currency',currency:'EUR'})}`;
             inizializzaFiltroAnni();
         }
 
