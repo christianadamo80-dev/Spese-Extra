@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestione Spese Figli</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Libreria per leggere i file Excel direttamente nel browser -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen pb-12">
+
+    <div class="max-w-6xl mx-auto px-4 pt-6">
+        <!-- Header -->
+        <header class="flex flex-col sm:flex-row justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm gap-4">
+            <h1 class="text-xl font-bold text-gray-900">📊 Spese Straordinarie Figli</h1>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="esportaDati()" class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg font-medium transition">Esporta Backup JSON</button>
+                <button onclick="document.getElementById('importFile').click()" class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg font-medium transition">Importa JSON</button>
+                <input type="file" id="importFile" class="hidden" accept=".json" onchange="importaDati(event)">
+            </div>
+        </header>
+
+        <!-- Sezione Caricamento Excel Speciale -->
+        <div class="bg-gradient-to-r divide-x divide-gray-200 bg-white p-5 rounded-xl shadow-sm mb-6 grid grid-cols-1 md:grid-cols-2 gap-4 border border-blue-100">
+            <div>
+                <h3 class="text-sm font-bold text-gray-900 mb-1">📥 Importa da File Excel (.xlsx / .xls / .csv)</h3>
+                <p class="text-xs text-gray-500 mb-3">Carica un file per estrarre le spese in blocco. L'app cercherà di riconoscere le colonne.</p>
+                <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" onchange="elaboraExcel(event)" class="block w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+            </div>
+            <div id="configurazioneExcel" class="hidden pl-0 md:pl-4 flex flex-col justify-between">
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                        <label class="block font-medium text-gray-600 mb-1">Colonna Figlio</label>
+                        <select id="colFiglio" class="w-full bg-gray-50 border p-1 rounded"></select>
+                    </div>
+                    <div>
+                        <label class="block font-medium text-gray-600 mb-1">Colonna Spesa (€)</label>
+                        <select id="colImporto" class="w-full bg-gray-50 border p-1 rounded"></select>
+                    </div>
+                    <div>
+                        <label class="block font-medium text-gray-600 mb-1">Colonna Descrizione</label>
+                        <select id="colDesc" class="w-full bg-gray-50 border p-1 rounded"></select>
+                    </div>
+                    <div>
+                        <label class="block font-medium text-gray-600 mb-1">Colonna Data</label>
+                        <select id="colData" class="w-full bg-gray-50 border p-1 rounded"></select>
+                    </div>
+                </div>
+                <button onclick="confermaImportazioneExcel()" class="w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-medium py-1 px-3 rounded text-xs transition">
+                    Conferma e Importa Righe
+                </button>
+            </div>
+        </div>
+
+        <!-- Filtro Anno e Riepilogo -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white p-4 rounded-xl shadow-sm flex flex-col justify-center">
+                <label class="text-xs font-bold uppercase text-gray-400 mb-1">Anno di Riferimento</label>
+                <select id="filtroAnno" onchange="aggiornaInterfaccia()" class="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 font-semibold text-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </select>
+            </div>
+            
+            <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500">
+                <div class="text-xs font-bold uppercase text-gray-400">Totale Speso Annuale</div>
+                <div id="totaleSpeso" class="text-2xl font-black text-gray-900 mt-1">0,00 €</div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-green-500">
+                <div class="text-xs font-bold uppercase text-gray-400">Quota Rimborso Singolo (50%)</div>
+                <div id="quotaRimborso" class="text-2xl font-black text-green-600 mt-1">0,00 €</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Form Nuovo Inserimento -->
+            <div class="bg-white p-5 rounded-xl shadow-sm h-fit">
+                <h2 class="text-md font-bold mb-4 text-gray-900">Aggiungi Singola Spesa</h2>
+                <form id="spesaForm" onsubmit="aggiungiSpesa(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Data</label>
+                        <input type="date" id="data" required class="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Figlio/a</label>
+                        <input type="text" id="figlio" placeholder="Es. Andrea, Sofia" required class="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Descrizione / Categoria</label>
+                        <input type="text" id="descrizione" placeholder="Es. Visita Medica, Sport" required class="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Importo (€)</label>
+                        <input type="number" step="0.01" id="importo" placeholder="0.00" required class="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium p-2.5 rounded-lg transition mt-2">
+                        Salva Spesa
+                    </button>
+                </form>
+            </div>
+
+            <!-- Elenco Spese -->
+            <div class="lg:grid-cols-3 lg:col-span-2 bg-white p-5 rounded-xl shadow-sm">
+                <h2 class="text-md font-bold mb-4 text-gray-900">Registro Spese</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-gray-100 text-xs font-bold uppercase text-gray-400">
+                                <th class="py-3 px-2">Data</th>
+                                <th class="py-3 px-2">Figlio</th>
+                                <th class="py-3 px-2">Descrizione</th>
+                                <th class="py-3 px-2 text-right">Importo</th>
+                                <th class="py-3 px-2 text-center">Azione</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listaSpese" class="divide-y divide-gray-50 text-sm">
+                        </tbody>
+                    </table>
+                </div>
+                <div id="nessunaSpesa" class="text-center py-8 text-gray-400 text-sm hidden">
+                    Nessuna spesa registrata per l'anno selezionato.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let spese = JSON.parse(localStorage.getItem('spese_extra_figli')) || [];
+        let datiExcelTemporanei = null;
+
+        window.onload = function() {
+            document.getElementById('data').valueAsDate = new Date();
+            inizializzaFiltroAnni();
+            aggiornaInterfaccia();
+        };
+
+        function inizializzaFiltroAnni() {
+            const select = document.getElementById('filtroAnno');
+            const annoCorrente = new Date().getFullYear();
+            const anni = new Set([annoCorrente]);
+            spese.forEach(s => {
+                if(s.data) anni.add(new Date(s.data).getFullYear());
+            });
+            
+            const vecchioValore = select.value;
+            select.innerHTML = '';
+            Array.from(anni).sort((a, b) => b - a).forEach(anno => {
+                const opt = document.createElement('option');
+                opt.value = anno;
+                opt.textContent = anno;
+                select.appendChild(opt);
+            });
+            if([...anni].includes(parseInt(vecchioValore))) select.value = vecchioValore;
+        }
+
+        function aggiungiSpesa(e) {
+            e.preventDefault();
+            const nuovaSpesa = {
+                id: Date.now() + Math.random(),
+                data: document.getElementById('data').value,
+                figlio: document.getElementById('figlio').value.trim(),
+                descrizione: document.getElementById('descrizione').value.trim(),
+                importo: parseFloat(document.getElementById('importo').value)
+            };
+            spese.push(nuovaSpesa);
+            salvaDati();
+            document.getElementById('descrizione').value = '';
+            document.getElementById('importo').value = '';
+            inizializzaFiltroAnni();
+            aggiornaInterfaccia();
+        }
+
+        // --- SISTEMA DI IMPORTAZIONE EXCEL ---
+        function elaboraExcel(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const data = new Uint8Array(evt.target.result);
+                const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                const primaScheda = workbook.SheetNames[0];
+                const foglio = workbook.Sheets[primaScheda];
+                
+                // Converte in array di oggetti JSON (la prima riga viene usata come chiavi/colonne)
+                datiExcelTemporanei = XLSX.utils.sheet_to_json(foglio, { defval: "" });
+
+                if (datiExcelTemporanei.length === 0) {
+                    alert("Il file Excel sembra essere vuoto.");
+                    return;
+                }
+
+                // Trova le intestazioni di colonna disponibili
+                const colonne = Object.keys(datiExcelTemporanei[0]);
+                popolaSelettoriColonne(colonne);
+                document.getElementById('configurazioneExcel').classList.remove('hidden');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function popolaSelettoriColonne(colonne) {
+            const selettori = ['colFiglio', 'colImporto', 'colDesc', 'colData'];
+            selettori.forEach(id => {
+                const sel = document.getElementById(id);
+                sel.innerHTML = '<option value="">-- Seleziona --</option>';
+                colonne.forEach(col => {
+                    const opt = document.createElement('option');
+                    opt.value = col;
+                    opt.textContent = col;
+                    // Tentativo di auto-rilevamento intelligente basato sul nome colonna
+                    const cLower = col.toLowerCase();
+                    if(id === 'colFiglio' && (cLower.includes('figl') || cLower.includes('nome') || cLower.includes('chi'))) opt.selected = true;
+                    if(id === 'colImporto' && (cLower.includes('import') || cLower.includes('euro') || cLower.includes('tot') || cLower.includes('spesa'))) opt.selected = true;
+                    if(id === 'colDesc' && (cLower.includes('desc') || cLower.includes('cat') || cLower.includes('causale') || cLower.includes('tipo'))) opt.selected = true;
+                    if(id === 'colData' && (cLower.includes('dat') || cLower.includes('giorno'))) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+            });
+        }
+
+        function confermaImportazioneExcel() {
+            const colFiglio = document.getElementById('colFiglio').value;
+            const colImporto = document.getElementById('colImporto').value;
+            const colDesc = document.getElementById('colDesc').value;
+            const colData = document.getElementById('colData').value;
+
+            if (!colFiglio || !colImporto || !colDesc) {
+                alert("Per favore, mappa almeno le colonne di Figlio, Importo e Descrizione.");
+                return;
+            }
+
+            let contatore = 0;
+            datiExcelTemporanei.forEach(riga => {
+                let valoreImporto = parseFloat(String(riga[colImporto]).replace(/[^0-9.,-]/g, '').replace(',', '.'));
+                let nomeFiglio = String(riga[colFiglio]).trim();
+                let descrizione = String(riga[colDesc]).trim();
+                
+                // Gestione e formattazione data
+                let dataSpesa = new Date().toISOString().split('T')[0]; // Default oggi se manca
+                if (colData && riga[colData]) {
+                    let d = new Date(riga[colData]);
+                    if (!isNaN(d.getTime())) {
+                        dataSpesa = d.toISOString().split('T')[0];
+                    }
+                }
+
+                // Importa solo se c'è un figlio valido e un importo numerico maggiore di 0
+                if (nomeFiglio && !isNaN(valoreImporto) && valoreImporto > 0) {
+                    spese.push({
+                        id: Date.now() + Math.random(),
+                        data: dataSpesa,
+                        figlio: nomeFiglio,
+                        descrizione: descrizione || "Importato da Excel",
+                        importo: valoreImporto
+                    });
+                    contatore++;
+                }
+            });
+
+            salvaDati();
+            inizializzaFiltroAnni();
+            aggiornaInterfaccia();
+            
+            // Reset dell'interfaccia di caricamento
+            document.getElementById('configurazioneExcel').classList.add('hidden');
+            document.getElementById('excelFile').value = '';
+            datiExcelTemporanei = null;
+
+            alert(`Importate con successo ${contatore} spese dal file Excel!`);
+        }
+
+        // --- FUNZIONI DI BASE ---
+        function eliminaSpesa(id) {
+            if(confirm("Vuoi davvero eliminare questa spesa?")) {
+                spese = spese.filter(s => s.id !== id);
+                salvaDati();
+                inizializzaFiltroAnni();
+                aggiornaInterfaccia();
+            }
+        }
+
+        function aggiornaInterfaccia() {
+            const annoSelezionato = parseInt(document.getElementById('filtroAnno').value) || new Date().getFullYear();
+            const lista = document.getElementById('listaSpese');
+            const nessunaSpesa = document.getElementById('nessunaSpesa');
+            
+            const speseFiltrate = spese.filter(s => s.data && new Date(s.data).getFullYear() === annoSelezionato);
+            speseFiltrate.sort((a, b) => new Date(b.data) - new Date(a.data));
+
+            lista.innerHTML = '';
+            let totale = 0;
+
+            if(speseFiltrate.length === 0) {
+                nessunaSpesa.classList.remove('hidden');
+            } else {
+                nessunaSpesa.classList.add('hidden');
+                speseFiltrate.forEach(s => {
+                    totale += s.importo;
+                    const dataIta = new Date(s.data).toLocaleDateString('it-IT');
+                    
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-gray-50 transition";
+                    tr.innerHTML = `
+                        <td class="py-3 px-2 font-medium">${dataIta}</td>
+                        <td class="py-3 px-2 text-gray-600">${scappaHTML(s.figlio)}</td>
+                        <td class="py-3 px-2 text-gray-600">${scappaHTML(s.descrizione)}</td>
+                        <td class="py-3 px-2 text-right font-semibold">${s.importo.toLocaleString('it-IT', {style: 'currency', currency: 'EUR'})}</td>
+                        <td class="py-3 px-2 text-center">
+                            <button onclick="eliminaSpesa(${s.id})" class="text-red-500 hover:text-red-700 font-medium p-1">Elimina</button>
+                        </td>
+                    `;
+                    lista.appendChild(tr);
+                });
+            }
+
+            document.getElementById('totaleSpeso').textContent = totale.toLocaleString('it-IT', {style: 'currency', currency: 'EUR'});
+            document.getElementById('quotaRimborso').textContent = (totale / 2).toLocaleString('it-IT', {style: 'currency', currency: 'EUR'});
+        }
+
+        function salvaDati() {
+            localStorage.setItem('spese_extra_figli', JSON.stringify(spese));
+        }
+
+        function esportaDati() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(spese, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `backup_spese_figli.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importaDati(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const datiImportati = JSON.parse(evt.target.result);
+                    if (Array.isArray(datiImportati)) {
+                        if(confirm("L'importazione sovrascriverà i dati attuali nel browser. Continuare?")) {
+                            spese = datiImportati;
+                            salvaDati();
+                            inizializzaFiltroAnni();
+                            aggiornaInterfaccia();
+                            alert("Dati importati con successo!");
+                        }
+                    }
+                } catch (err) { alert("Errore nel file JSON."); }
+            };
+            reader.readAsText(file);
+        }
+
+        function scappaHTML(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
